@@ -2,11 +2,10 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
-import gradio as gr
+import streamlit as st
 
 # ---------------------------------------------------------
 # 1. Dados de treinamento
-# (adicionei mais linhas para o modelo aprender melhor)
 # ---------------------------------------------------------
 dados = {
     'Horas_de_estudo': [10, 2, 5, 8, 1, 9, 3, 7, 4, 6],
@@ -15,13 +14,14 @@ dados = {
     'Situacao': ['Aprovado', 'Reprovado', 'Recuperação', 'Aprovado', 'Reprovado',
                  'Aprovado', 'Reprovado', 'Aprovado', 'Recuperação', 'Recuperação']
 }
+
 df = pd.DataFrame(dados)
 
 # ---------------------------------------------------------
 # 2. Preparação e treino do modelo
 # ---------------------------------------------------------
 X = df[['Horas_de_estudo', 'Faltas', 'Nota']]
-y = df['Situacao']  # Series (não DataFrame) - evita warnings do sklearn
+y = df['Situacao']
 
 X_train, X_teste, y_train, y_teste = train_test_split(
     X, y, test_size=0.2, random_state=42
@@ -30,73 +30,107 @@ X_train, X_teste, y_train, y_teste = train_test_split(
 modelo = DecisionTreeClassifier(random_state=42)
 modelo.fit(X_train, y_train)
 
-# Acurácia correta: avaliada no conjunto de teste (não em 1 aluno novo)
+# Acurácia avaliada no conjunto de teste
 y_pred_teste = modelo.predict(X_teste)
 acuracia = accuracy_score(y_teste, y_pred_teste)
-print(f"Acurácia do modelo no conjunto de teste: {acuracia:.2%}")
 
 # ---------------------------------------------------------
-# 3. Função de previsão usada pela interface
+# 3. Configuração da página
 # ---------------------------------------------------------
-EMOJI_SITUACAO = {
-    'Aprovado': '🟢',
-    'Recuperação': '🟡',
-    'Reprovado': '🔴',
-}
+st.set_page_config(
+    page_title="Previsor de Situação Escolar",
+    page_icon="🎓",
+    layout="centered"
+)
 
-def prever_situacao(horas, faltas, nota):
-    if horas is None or faltas is None or nota is None:
-        return "⚠️ Preencha todos os campos."
-    if horas < 0 or faltas < 0 or not (0 <= nota <= 10):
-        return "⚠️ Verifique os valores: horas/faltas não podem ser negativas e a nota deve estar entre 0 e 10."
+st.title("🎓 Previsor de Situação Escolar")
+st.write(
+    "Preencha os dados do aluno para prever se ele ficará "
+    "**Aprovado**, em **Recuperação** ou **Reprovado**."
+)
 
-    df_novo = pd.DataFrame([[horas, faltas, nota]],
-                            columns=['Horas_de_estudo', 'Faltas', 'Nota'])
+st.info(f"📊 Acurácia do modelo no conjunto de teste: **{acuracia:.0%}**")
+
+# ---------------------------------------------------------
+# 4. Entrada de dados
+# ---------------------------------------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    horas = st.slider(
+        "📚 Horas de estudo por semana",
+        min_value=0,
+        max_value=20,
+        value=8,
+        step=1
+    )
+
+    faltas = st.slider(
+        "🚪 Número de faltas",
+        min_value=0,
+        max_value=30,
+        value=2,
+        step=1
+    )
+
+with col2:
+    nota = st.slider(
+        "📝 Nota atual",
+        min_value=0.0,
+        max_value=10.0,
+        value=7.0,
+        step=0.5
+    )
+
+# ---------------------------------------------------------
+# 5. Previsão
+# ---------------------------------------------------------
+if st.button("🔮 Prever situação", type="primary", use_container_width=True):
+
+    df_novo = pd.DataFrame(
+        [[horas, faltas, nota]],
+        columns=['Horas_de_estudo', 'Faltas', 'Nota']
+    )
+
     resultado = modelo.predict(df_novo)[0]
 
-    # nível de confiança da previsão
+    # Nível de confiança da previsão
     probabilidades = modelo.predict_proba(df_novo)[0]
     prob_dict = dict(zip(modelo.classes_, probabilidades))
     confianca = prob_dict[resultado] * 100
 
-    emoji = EMOJI_SITUACAO.get(resultado, '')
-    return f"## {emoji} {resultado}\n\nConfiança do modelo: **{confianca:.1f}%**"
+    emoji_situacao = {
+        'Aprovado': '🟢',
+        'Recuperação': '🟡',
+        'Reprovado': '🔴',
+    }
+
+    emoji = emoji_situacao.get(resultado, '')
+
+    st.subheader(f"{emoji} {resultado}")
+    st.write(f"Confiança do modelo: **{confianca:.1f}%**")
 
 # ---------------------------------------------------------
-# 4. Interface Gradio — mais intuitiva
-#    (sliders em vez de campos numéricos soltos, emojis,
-#     validação, exemplos clicáveis e explicação do resultado)
+# 6. Exemplos rápidos
 # ---------------------------------------------------------
-with gr.Blocks(title="Previsor de Situação Escolar") as interface:
-    gr.Markdown(
-        """
-        # 🎓 Previsor de Situação Escolar
-        Preencha os dados do aluno para prever se ele ficará
-        **Aprovado**, em **Recuperação** ou **Reprovado**.
-        """
-    )
-    gr.Markdown(f"*Acurácia do modelo no conjunto de teste: {acuracia:.0%}*")
+st.divider()
+st.subheader("💡 Exemplos rápidos")
 
-    with gr.Row():
-        with gr.Column():
-            horas = gr.Slider(0, 20, value=8, step=1,
-                               label="📚 Horas de estudo por semana")
-            faltas = gr.Slider(0, 30, value=2, step=1,
-                                label="🚪 Número de faltas")
-            nota = gr.Slider(0, 10, value=7.0, step=0.5,
-                              label="📝 Nota atual")
-            botao = gr.Button("Prever situação", variant="primary")
+exemplos = {
+    "🟢 Aluno com bom desempenho": [10, 1, 9.0],
+    "🔴 Aluno com baixo desempenho": [2, 18, 3.0],
+    "🟡 Aluno intermediário": [6, 6, 6.5],
+}
 
-        with gr.Column():
-            saida = gr.Markdown(label="Resultado")
+for nome, valores in exemplos.items():
+    with st.expander(nome):
+        st.write(f"📚 Horas de estudo: **{valores[0]}**")
+        st.write(f"🚪 Faltas: **{valores[1]}**")
+        st.write(f"📝 Nota: **{valores[2]}**")
+        st.caption("Use esses valores nos controles acima e clique em «Prever situação».")
 
-    botao.click(fn=prever_situacao, inputs=[horas, faltas, nota], outputs=saida)
-
-    gr.Examples(
-        label="Exemplos rápidos (clique para testar)",
-        examples=[[10, 1, 9.0], [2, 18, 3.0], [6, 6, 6.5]],
-        inputs=[horas, faltas, nota],
-    )
-
-if __name__ == "__main__":
-    interface.launch()
+st.divider()
+st.caption(
+    "⚠️ Os dados utilizados são dados de exemplo e têm finalidade educacional. "
+    "A previsão não deve ser utilizada como avaliação real do desempenho de um aluno."
+)
