@@ -1,14 +1,3 @@
----
-
-title: Previsor de Situação Escolar
-emoji: 🎓
-colorFrom: blue
-colorTo: green
-sdk: gradio
-sdk_version: 5.44.0
-app_file: index.py
-pinned: false
--------------
 
 # 🎓 Previsor de Situação Escolar
 
